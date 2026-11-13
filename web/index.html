@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โอจัง (OJung) - ระบบสะสมแต้ม & หน้าร้าน</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Prompt for modern, clean Thai typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js for generating Customer & Shop QR Codes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- HTML5-QRCode for scanning customer QR Codes via camera -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary-dark: #4A2C2A;    /* Espresso / Brown Sugar Dark */
+            --primary-main: #8C4A27;    /* Rich Thai Tea / Caramel */
+            --primary-accent: #D97706;  /* Golden Amber */
+            --bg-cream: #FFFBEB;        /* Creamy Milk Foam */
+            --bg-soft: #FEF3C7;         /* Soft Warm Cream */
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--bg-cream);
+            color: #291D1C;
+            overflow-x: hidden;
+        }
+
+        .bg-ojung-gradient {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-main) 60%, var(--primary-accent) 100%);
+        }
+
+        .bg-ojung-card {
+            background: linear-gradient(145deg, #3D2321 0%, #6B381E 55%, #B45309 100%);
+        }
+
+        .btn-ojung {
+            background: linear-gradient(135deg, var(--primary-main), var(--primary-accent));
+            color: white;
+            transition: all 0.2s ease;
+        }
+        .btn-ojung:hover {
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+        }
+        .btn-ojung:active {
+            transform: scale(0.98);
+        }
+
+        /* Custom scrollbar for horizontal menu tabs */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* QR Code centering */
+        #customer-qrcode img, #shop-join-qrcode img {
+            margin: 0 auto;
+            border-radius: 12px;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.02); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+        .animate-pulse-slow {
+            animation: pulse-ring 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-ojung-gradient text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <!-- Brand Logo & Name -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-xl shadow-inner border-2 border-amber-300">
+                    <i class="fa-solid fa-mug-hot"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg sm:text-xl leading-tight tracking-wide">โอจัง <span class="text-amber-200 font-semibold">OJung</span></h1>
+                    <p class="text-xs text-amber-100/90">ชาไข่มุก • กาแฟ • อิตาเลียนโซดา</p>
+                </div>
+            </div>
+
+            <!-- Mode Switcher & Theme Customizer -->
+            <div class="flex items-center space-x-2">
+                <!-- Theme Color Picker Trigger (in case user wants to tweak tone) -->
+                <button onclick="toggleThemeModal()" title="ปรับโทนสีร้าน" class="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-amber-100 transition">
+                    <i class="fa-solid fa-palette"></i>
+                </button>
+
+                <!-- Switch View Pill -->
+                <div class="bg-black/25 p-1 rounded-xl flex text-xs sm:text-sm font-medium backdrop-blur-sm">
+                    <button id="nav-customer-btn" onclick="switchAppMode('customer')" class="px-3 py-1.5 rounded-lg bg-white text-amber-950 font-semibold shadow transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-user"></i>
+                        <span>ลูกค้า</span>
+                    </button>
+                    <button id="nav-shop-btn" onclick="switchAppMode('shop')" class="px-3 py-1.5 rounded-lg text-amber-100 hover:text-white transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-store"></i>
+                        <span>ร้านค้า</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification Toast Banner -->
+    <div id="toast-container" class="fixed top-20 right-4 left-4 sm:left-auto sm:w-96 z-50 pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+
+        <!-- ========================================================= -->
+        <!-- 1. CUSTOMER VIEW (หน้าลูกค้า)                              -->
+        <!-- ========================================================= -->
+        <section id="customer-section" class="space-y-6">
+
+            <!-- Customer Login / Registration Card (Shown if no phone number active) -->
+            <div id="customer-auth-card" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl border border-amber-200/70 overflow-hidden">
+                <div class="bg-ojung-gradient p-6 text-center text-white relative">
+                    <div class="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3 shadow-md border border-white/30">
+                        🧋
+                    </div>
+                    <h2 class="text-2xl font-bold">ยินดีต้อนรับสู่ โอจัง</h2>
+                    <p class="text-amber-100 text-sm mt-1">กรอกเบอร์โทรศัพท์เพื่อสมัครสมาชิกหรือเช็กแต้มสะสม</p>
+                </div>
+
+                <form id="customer-login-form" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-amber-950 mb-1.5">เบอร์โทรศัพท์มือถือ (10 หลัก)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-amber-700">
+                                <i class="fa-solid fa-phone"></i>
+                            </span>
+                            <input type="tel" id="customer-phone-input" maxlength="10" pattern="[0-9]{9,10}" required
+                                placeholder="เช่น 0812345678"
+                                class="w-full pl-10 pr-4 py-3.5 rounded-2xl border-2 border-amber-200 focus:border-amber-600 focus:ring-4 focus:ring-amber-500/15 outline-none text-lg font-semibold tracking-wider text-amber-950 bg-amber-50/40">
+                        </div>
+                    </div>
+
+                    <div id="customer-name-field">
+                        <label class="block text-sm font-medium text-amber-900 mb-1">ชื่อเล่น (สำหรับสมาชิกใหม่ - ไม่บังคับ)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-amber-700">
+                                <i class="fa-solid fa-face-smile"></i>
+                            </span>
+                            <input type="text" id="customer-name-input" placeholder="เช่น น้องมายด์, พี่เอก"
+                                class="w-full pl-10 pr-4 py-3 rounded-2xl border border-amber-200 focus:border-amber-600 outline-none text-amber-950 bg-amber-50/40">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full btn-ojung py-3.5 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2">
+                        <span>เข้าสู่ระบบ / สมัครสมาชิก</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+
+                    <div class="pt-2 text-center">
+                        <button type="button" onclick="openShopJoinQrModal()" class="text-xs text-amber-800 hover:text-amber-600 underline font-medium inline-flex items-center gap-1">
+                            <i class="fa-solid fa-qrcode"></i> ดู QR Code สมัครสมาชิกหน้าร้าน
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Customer Dashboard (Shown after entering phone number) -->
+            <div id="customer-dashboard" class="hidden max-w-md mx-auto space-y-5">
+
+                <!-- TOP SECTION: ข้อมูลสะสมแต้มข้างบน -->
+                <div class="bg-ojung-card text-white rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-amber-400/30">
+                    <!-- Decorative circles -->
+                    <div class="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-amber-400/15 blur-xl"></div>
+                    <div class="absolute -left-8 -bottom-10 w-32 h-32 rounded-full bg-orange-500/15 blur-xl"></div>
+
+                    <div class="flex justify-between items-start relative z-10">
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-200 text-xs font-semibold">
+                                <i class="fa-solid fa-crown text-amber-300"></i> สมาชิกร้านโอจัง
+                            </span>
+                            <h3 id="display-cust-name" class="text-xl font-bold mt-2">คุณลูกค้า</h3>
+                            <p id="display-cust-phone" class="text-amber-200/90 text-sm font-mono tracking-wider">08X-XXX-XXXX</p>
+                        </div>
+                        <button onclick="logoutCustomer()" class="text-xs bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-xl text-amber-100 transition flex items-center gap-1">
+                            <i class="fa-solid fa-right-from-bracket"></i> เปลี่ยนเบอร์
+                        </button>
+                    </div>
+
+                    <!-- Points Counter -->
+                    <div class="mt-6 bg-black/25 backdrop-blur-sm rounded-2xl p-4 border border-white/10 relative z-10">
+                        <div class="flex items-end justify-between">
+                            <div>
+                                <p class="text-xs text-amber-200 uppercase tracking-wider">แต้มสะสมปัจจุบัน</p>
+                                <div class="flex items-baseline gap-2 mt-0.5">
+                                    <span id="display-cust-points" class="text-4xl sm:text-5xl font-extrabold text-amber-300">0</span>
+                                    <span class="text-sm text-amber-100 font-medium">แต้ม</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span id="reward-badge" class="inline-block px-3 py-1 rounded-xl bg-amber-500/30 text-amber-100 text-xs font-medium">
+                                    ครบ 10 แต้ม ฟรี 1 แก้ว!
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 10-Cup Stamp Progress Bar -->
+                        <div class="mt-4">
+                            <div class="flex justify-between text-xs text-amber-200/90 mb-1.5">
+                                <span>ความคืบหน้าแลกเครื่องดื่มฟรี</span>
+                                <span id="progress-text">0 / 10 แก้ว</span>
+                            </div>
+                            <div class="grid grid-cols-10 gap-1.5" id="stamp-grid">
+                                <!-- 10 stamp slots generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BOTTOM SECTION: คิวอาร์โค้ดเพื่อให้ทางร้านสแกนให้แต้มกับลูกค้า -->
+                <div class="bg-white rounded-3xl p-6 shadow-xl border-2 border-amber-200 text-center relative">
+                    <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-100 text-amber-900 font-bold text-sm mb-3">
+                        <i class="fa-solid fa-qrcode text-amber-600"></i>
+                        <span>ยื่น QR Code นี้ให้ร้านสแกนรับแต้ม</span>
+                    </div>
+
+                    <div class="p-4 bg-amber-50/70 rounded-2xl border-2 border-dashed border-amber-300 inline-block mx-auto animate-pulse-slow">
+                        <div id="customer-qrcode" class="bg-white p-3 rounded-xl shadow-sm"></div>
+                    </div>
+
+                    <p class="mt-3 text-sm font-semibold text-amber-950">รหัสสมาชิก: <span id="qr-phone-label" class="font-mono text-amber-700 text-base"></span></p>
+                    <p class="text-xs text-gray-500 mt-1">ระบบจะอัปเดตแต้มอัตโนมัติทันทีที่ร้านกดยืนยัน</p>
+                </div>
+
+                <!-- Customer Order & Points History -->
+                <div class="bg-white rounded-3xl p-5 shadow-md border border-amber-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-bold text-amber-950 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                            ประวัติการสะสมแต้ม & เมนูที่สั่ง
+                        </h4>
+                        <span class="text-xs text-gray-400">เรียลไทม์</span>
+                    </div>
+                    <div id="customer-history-list" class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                        <p class="text-center text-sm text-gray-400 py-6">ยังไม่มีประวัติการสั่งซื้อ</p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- 2. SHOP / STAFF VIEW (หน้าร้านค้า - ต้อง Login)           -->
+        <!-- ========================================================= -->
+        <section id="shop-section" class="hidden">
+
+            <!-- Shop Login Gate (user: OJung, password: 123456) -->
+            <div id="shop-login-card" class="max-w-md mx-auto bg-white rounded-3xl shadow-xl border border-amber-200 overflow-hidden">
+                <div class="bg-stone-900 p-6 text-center text-white">
+                    <div class="w-16 h-16 bg-amber-500/20 border border-amber-400/40 text-amber-400 rounded-2xl mx-auto flex items-center justify-center text-2xl mb-3">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <h2 class="text-xl font-bold">เข้าสู่ระบบหน้าร้านค้า</h2>
+                    <p class="text-stone-400 text-xs mt-1">เฉพาะพนักงานและเจ้าของร้าน โอจัง (OJung)</p>
+                </div>
+
+                <form id="shop-login-form" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">ชื่อผู้ใช้ (Username)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </span>
+                            <input type="text" id="shop-username" required placeholder="กรอกชื่อผู้ใช้"
+                                class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">รหัสผ่าน (Password)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
+                                <i class="fa-solid fa-key"></i>
+                            </span>
+                            <input type="password" id="shop-password" required placeholder="กรอกรหัสผ่าน"
+                                class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 outline-none">
+                        </div>
+                    </div>
+
+                    <div id="shop-login-error" class="hidden text-xs text-red-600 bg-red-50 p-3 rounded-xl border border-red-200 font-medium">
+                        <i class="fa-solid fa-circle-exclamation mr-1"></i> ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!
+                    </div>
+
+                    <button type="submit" class="w-full btn-ojung py-3.5 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        <span>เข้าสู่ระบบร้านค้า</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Shop POS & Point Management Dashboard (Unlocked) -->
+            <div id="shop-dashboard" class="hidden space-y-5">
+
+                <!-- Top Shop Bar -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-200 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-cash-register"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-amber-950">ระบบหน้าร้าน โอจัง (OJung POS)</h2>
+                            <p class="text-xs text-green-600 font-medium flex items-center gap-1">
+                                <span class="w-2 h-2 rounded-full bg-green-500 inline-block animate-ping"></span>
+                                เชื่อมต่อระบบสมาชิกเรียลไทม์แล้ว
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="openShopJoinQrModal()" class="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-qrcode"></i>
+                            <span>QR ให้ลูกค้าสมัคร</span>
+                        </button>
+                        <button onclick="openSalesLogModal()" class="px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-list-check"></i>
+                            <span>ประวัติออเดอร์ทั้งหมด</span>
+                        </button>
+                        <button onclick="logoutShop()" class="px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-power-off"></i>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main Grid: Left (Scan/Select Customer + Menu Selection), Right (Current Order Cart & Award Points) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+                    <!-- LEFT COLUMN (7 cols): Step 1 Customer & Step 2 Categorized Menu -->
+                    <div class="lg:col-span-7 space-y-5">
+
+                        <!-- STEP 1: เลือกลูกค้า (สแกน QR หรือ ค้นหาเบอร์โทร) -->
+                        <div class="bg-white rounded-3xl p-5 shadow-md border border-amber-200">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-bold text-amber-950 flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs flex items-center justify-center">1</span>
+                                    <span>สแกน QR ลูกค้า หรือ กรอกเบอร์โทร</span>
+                                </h3>
+                                <button id="toggle-scanner-btn" onclick="toggleQrScanner()" class="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow flex items-center gap-1.5 transition">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>เปิดกล้องสแกน QR</span>
+                                </button>
+                            </div>
+
+                            <!-- Camera QR Reader Area -->
+                            <div id="qr-reader-wrapper" class="hidden mb-4 bg-black rounded-2xl overflow-hidden relative">
+                                <div id="qr-reader" class="w-full"></div>
+                                <button onclick="stopQrScanner()" class="w-full py-2 bg-red-600 text-white text-xs font-bold">ปิดกล้องสแกน</button>
+                            </div>
+
+                            <!-- Search by Phone Input -->
+                            <div class="flex gap-2">
+                                <div class="relative flex-1">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                                        <i class="fa-solid fa-magnifying-glass"></i>
+                                    </span>
+                                    <input type="tel" id="shop-search-phone" maxlength="10" placeholder="พิมพ์เบอร์โทรลูกค้า 10 หลัก..."
+                                        class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-amber-200 focus:border-amber-600 outline-none text-sm font-semibold">
+                                </div>
+                                <button onclick="selectCustomerByPhoneInput()" class="px-4 py-2.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-white text-sm font-semibold transition">
+                                    ค้นหา / เลือก
+                                </button>
+                            </div>
+
+                            <!-- Quick Select Recent Members Pills -->
+                            <div class="mt-3">
+                                <p class="text-xs text-gray-500 mb-1.5">สมาชิกล่าสุด (แตะเพื่อเลือกทันที):</p>
+                                <div id="recent-members-list" class="flex flex-wrap gap-1.5">
+                                    <span class="text-xs text-gray-400 italic">กำลังโหลดรายชื่อสมาชิก...</span>
+                                </div>
+                            </div>
+
+                            <!-- Active Selected Customer Banner -->
+                            <div id="selected-customer-banner" class="hidden mt-4 p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-400 flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-user-check"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span id="pos-cust-name" class="font-bold text-amber-950 text-sm">ชื่อลูกค้า</span>
+                                            <span id="pos-cust-phone" class="text-xs font-mono bg-white px-2 py-0.5 rounded border border-amber-200 text-amber-800">08XXXXXXXX</span>
+                                        </div>
+                                        <p class="text-xs text-amber-800 mt-0.5">
+                                            แต้มสะสมปัจจุบัน: <strong id="pos-cust-points" class="text-base text-amber-700">0</strong> แต้ม
+                                        </p>
+                                    </div>
+                                </div>
+                                <button onclick="clearSelectedCustomer()" class="text-gray-400 hover:text-red-500 p-1.5" title="ยกเลิกการเลือกลูกค้า">
+                                    <i class="fa-solid fa-xmark text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 2: เลือกเมนูเครื่องดื่ม (แยกหมวดหมู่ ชา / กาแฟ / โซดา / นม) -->
+                        <div class="bg-white rounded-3xl p-5 shadow-md border border-amber-200">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <h3 class="font-bold text-amber-950 flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs flex items-center justify-center">2</span>
+                                    <span>เลือกเมนูที่ลูกค้าสั่ง</span>
+                                </h3>
+                                <!-- Quick Filter Search inside Menu -->
+                                <input type="text" id="menu-search-filter" oninput="renderMenuGrid()" placeholder="ค้นหาชื่อเมนู..."
+                                    class="px-3 py-1.5 rounded-xl border border-amber-200 text-xs outline-none focus:border-amber-600 w-40 sm:w-48">
+                            </div>
+
+                            <!-- Category Tabs (แยกหัวข้อชัดเจนตามต้องการ) -->
+                            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-3 border-b border-amber-100">
+                                <button onclick="setMenuCategory('all')" data-cat="all" class="cat-tab active px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-800 text-white shadow-sm transition">
+                                    🍹 ทั้งหมด
+                                </button>
+                                <button onclick="setMenuCategory('tea')" data-cat="tea" class="cat-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-50 text-amber-900 hover:bg-amber-100 transition">
+                                    🧋 เมนูชา
+                                </button>
+                                <button onclick="setMenuCategory('coffee')" data-cat="coffee" class="cat-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-50 text-amber-900 hover:bg-amber-100 transition">
+                                    ☕ เมนูกาแฟ
+                                </button>
+                                <button onclick="setMenuCategory('soda')" data-cat="soda" class="cat-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-50 text-amber-900 hover:bg-amber-100 transition">
+                                    🫧 เมนูโซดา
+                                </button>
+                                <button onclick="setMenuCategory('milk')" data-cat="milk" class="cat-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-50 text-amber-900 hover:bg-amber-100 transition">
+                                    🥛 นม & อื่นๆ
+                                </button>
+                            </div>
+
+                            <!-- Menu Grid -->
+                            <div id="pos-menu-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[420px] overflow-y-auto pr-1">
+                                <!-- Menu buttons injected here by JS -->
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- RIGHT COLUMN (5 cols): STEP 3 สรุปรายการ & ยืนยันการให้แต้ม -->
+                    <div class="lg:col-span-5">
+                        <div class="bg-white rounded-3xl p-5 shadow-lg border-2 border-amber-300 sticky top-20 space-y-4">
+                            <div class="flex items-center justify-between border-b border-amber-100 pb-3">
+                                <h3 class="font-bold text-amber-950 flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs flex items-center justify-center">3</span>
+                                    <span>รายการสั่งซื้อ & ให้แต้ม</span>
+                                </h3>
+                                <button onclick="clearCart()" class="text-xs text-red-500 hover:underline font-medium">ล้างรายการ</button>
+                            </div>
+
+                            <!-- Cart Items List -->
+                            <div id="pos-cart-list" class="space-y-2 min-h-[160px] max-h-72 overflow-y-auto pr-1">
+                                <div class="text-center py-10 text-gray-400">
+                                    <i class="fa-solid fa-mug-saucer text-3xl mb-2 text-amber-200"></i>
+                                    <p class="text-sm">ยังไม่ได้เลือกเมนูเครื่องดื่ม</p>
+                                    <p class="text-xs">แตะที่เมนูฝั่งซ้ายเพื่อเพิ่มรายการ</p>
+                                </div>
+                            </div>
+
+                            <!-- Points Summary Box -->
+                            <div class="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-2">
+                                <div class="flex justify-between text-sm text-amber-900">
+                                    <span>จำนวนแก้วทั้งหมด:</span>
+                                    <span id="cart-total-cups" class="font-bold">0 แก้ว</span>
+                                </div>
+                                <div class="flex justify-between items-center pt-1 border-t border-amber-200/70">
+                                    <span class="text-sm font-bold text-amber-950">แต้มที่จะได้รับ (1 แก้ว = 1 แต้ม):</span>
+                                    <div class="flex items-center gap-1.5">
+                                        <button onclick="adjustBonusPoints(-1)" class="w-7 h-7 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold">-</button>
+                                        <span id="cart-total-points" class="text-2xl font-extrabold text-amber-600 px-2">0</span>
+                                        <button onclick="adjustBonusPoints(1)" class="w-7 h-7 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold">+</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="space-y-2.5">
+                                <button onclick="submitOrderAndAwardPoints()" class="w-full btn-ojung py-4 rounded-2xl font-bold text-base shadow-lg flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-circle-check text-lg"></i>
+                                    <span>บันทึกออเดอร์ & ให้แต้มลูกค้า</span>
+                                </button>
+
+                                <button id="redeem-free-drink-btn" onclick="redeemCustomerReward()" class="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow flex items-center justify-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                                    <i class="fa-solid fa-gift"></i>
+                                    <span>ใช้ 10 แต้ม แลกเครื่องดื่มฟรี 1 แก้ว</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ========================================================= -->
+    <!-- MODALS                                                    -->
+    <!-- ========================================================= -->
+
+    <!-- Modal 1: Shop Registration QR Code (คิวอาร์โค้ดให้ลูกค้าสแกนสมัครสมาชิก) -->
+    <div id="shop-join-qr-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border-2 border-amber-300 relative">
+            <button onclick="closeModal('shop-join-qr-modal')" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center text-2xl mb-2">
+                🧋
+            </div>
+            <h3 class="text-xl font-bold text-amber-950">สแกนสะสมแต้ม ร้านโอจัง</h3>
+            <p class="text-xs text-gray-500 mt-1">สแกน QR Code ด้านล่างแล้วกรอกเบอร์โทรเพื่อสมัครสมาชิก</p>
+
+            <div class="my-5 p-4 bg-amber-50 rounded-2xl border-2 border-dashed border-amber-400 inline-block">
+                <div id="shop-join-qrcode" class="bg-white p-2 rounded-xl"></div>
+            </div>
+
+            <p class="text-xs font-semibold text-amber-800 bg-amber-100/80 py-2 px-3 rounded-xl">
+                สะสมครบ 10 แต้ม รับฟรีเครื่องดื่ม 1 แก้วทันที!
+            </p>
+        </div>
+    </div>
+
+    <!-- Modal 2: All Recorded Orders & Sales History -->
+    <div id="sales-log-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-amber-200 max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-amber-950">ประวัติการบันทึกออเดอร์และให้แต้ม</h3>
+                    <p class="text-xs text-gray-500">รายการสั่งซื้อทั้งหมดที่บันทึกผ่านระบบหน้าร้าน</p>
+                </div>
+                <button onclick="closeModal('sales-log-modal')" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="all-orders-list" class="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                <p class="text-center text-gray-400 py-8 text-sm">กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Theme Color Customizer (ปรับโทนสีเว็บตามต้องการ) -->
+    <div id="theme-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-amber-200">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-amber-950 flex items-center gap-2">
+                    <i class="fa-solid fa-palette text-amber-600"></i> ปรับโทนสีร้าน โอจัง
+                </h3>
+                <button onclick="closeModal('theme-modal')" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">เลือกโทนสีที่ตรงกับป้าย/โลโก้ร้านของคุณ:</p>
+            <div class="grid grid-cols-2 gap-2.5">
+                <button onclick="applyTheme('#4A2C2A', '#8C4A27', '#D97706', '#FFFBEB')" class="p-3 rounded-2xl border-2 border-amber-400 bg-amber-50 flex items-center gap-2 text-left">
+                    <span class="w-6 h-6 rounded-full bg-[#8C4A27] shrink-0"></span>
+                    <span class="text-xs font-bold text-amber-950">ชานมบราวน์ชูก้า</span>
+                </button>
+                <button onclick="applyTheme('#7C2D12', '#EA580C', '#F59E0B', '#FFF7ED')" class="p-3 rounded-2xl border border-gray-200 hover:border-orange-400 bg-orange-50 flex items-center gap-2 text-left">
+                    <span class="w-6 h-6 rounded-full bg-[#EA580C] shrink-0"></span>
+                    <span class="text-xs font-bold text-orange-950">ชาไทยส้มสดใส</span>
+                </button>
+                <button onclick="applyTheme('#14532D', '#15803D', '#65A30D', '#F0FDF4')" class="p-3 rounded-2xl border border-gray-200 hover:border-green-500 bg-green-50 flex items-center gap-2 text-left">
+                    <span class="w-6 h-6 rounded-full bg-[#15803D] shrink-0"></span>
+                    <span class="text-xs font-bold text-green-950">ชาเขียวมัทฉะ</span>
+                </button>
+                <button onclick="applyTheme('#831843', '#DB2777', '#F43F5E', '#FDF2F8')" class="p-3 rounded-2xl border border-gray-200 hover:border-pink-400 bg-pink-50 flex items-center gap-2 text-left">
+                    <span class="w-6 h-6 rounded-full bg-[#DB2777] shrink-0"></span>
+                    <span class="text-xs font-bold text-pink-950">นมชมพูหวานละมุน</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK & Application Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 1. COMPLETE BEVERAGE MENU DATA (แยกหมวดหมู่ครบถ้วนตามที่ระบุ)
+        // =========================================================================
+        const MENU_ITEMS = [
+            // หมวดชา (Tea)
+            { id: 't1', name: 'ชาเขียวบราวน์ชูก้า', category: 'tea', icon: '🧋' },
+            { id: 't2', name: 'ชาไต้หวันบราวน์ชูก้า', category: 'tea', icon: '🧋' },
+            { id: 't3', name: 'ชามะลิน้ำผึ้ง', category: 'tea', icon: '🍯' },
+            { id: 't4', name: 'ชามะลิลิ้นจี่', category: 'tea', icon: '🍹' },
+            { id: 't5', name: 'ชาเนสที', category: 'tea', icon: '🧋' },
+            { id: 't6', name: 'ชาพีช', category: 'tea', icon: '🍑' },
+            { id: 't7', name: 'ชามะลิ', category: 'tea', icon: '🌼' },
+            { id: 't8', name: 'ชามะลิแอปเปิ้ล', category: 'tea', icon: '🍏' },
+            { id: 't9', name: 'ชามะลินม', category: 'tea', icon: '🥛' },
+            { id: 't10', name: 'ชาเขียวใส', category: 'tea', icon: '🍃' },
+            { id: 't11', name: 'ชาดำ', category: 'tea', icon: '🖤' },
+            { id: 't12', name: 'ชาโกโก้', category: 'tea', icon: '🍫' },
+            { id: 't13', name: 'ชาเขียว', category: 'tea', icon: '🍵' },
+            { id: 't14', name: 'ชานมไต้หวัน', category: 'tea', icon: '🧋' },
+            { id: 't15', name: 'ชาไทย', category: 'tea', icon: '🧡' },
+
+            // หมวดกาแฟ (Coffee)
+            { id: 'c1', name: 'อเมริกาโน่เย็น', category: 'coffee', icon: '☕' },
+            { id: 'c2', name: 'คาปูชิโน่', category: 'coffee', icon: '☕' },
+            { id: 'c3', name: 'กาแฟ', category: 'coffee', icon: '☕' },
+            { id: 'c4', name: 'เอสเปรสโซ่', category: 'coffee', icon: '☕' },
+            { id: 'c5', name: 'ลาเต้', category: 'coffee', icon: '🤎' },
+            { id: 'c6', name: 'มอคค่า', category: 'coffee', icon: '🍫' },
+            { id: 'c7', name: 'เนสกาแฟ', category: 'coffee', icon: '☕' },
+
+            // หมวดโซดา (Soda)
+            { id: 's1', name: 'แดงโซดา', category: 'soda', icon: '🍒' },
+            { id: 's2', name: 'เขียวโซดา', category: 'soda', icon: '🍏' },
+            { id: 's3', name: 'มะม่วงโซดา', category: 'soda', icon: '🥭' },
+            { id: 's4', name: 'กีวี่โซดา', category: 'soda', icon: '🥝' },
+            { id: 's5', name: 'แคนตาลูปโซดา', category: 'soda', icon: '🍈' },
+            { id: 's6', name: 'น้ำผึ้งมะนาวโซดา', category: 'soda', icon: '🍋' },
+            { id: 's7', name: 'แอปเปิ้ลโซดา', category: 'soda', icon: '🍎' },
+            { id: 's8', name: 'องุ่นโซดา', category: 'soda', icon: '🍇' },
+            { id: 's9', name: 'เสาวรสโซดา', category: 'soda', icon: '🍹' },
+            { id: 's10', name: 'สตอร์เบอร์รี่โซดา', category: 'soda', icon: '🍓' },
+            { id: 's11', name: 'ลิ้นจี่โซดา', category: 'soda', icon: '🍒' },
+            { id: 's12', name: 'มะนาวโซดา', category: 'soda', icon: '🍋' },
+            { id: 's13', name: 'บ๊วยโซดา', category: 'soda', icon: '🍑' },
+            { id: 's14', name: 'บลูฮาวายโซดา', category: 'soda', icon: '🧊' },
+            { id: 's15', name: 'บลูเบอร์รี่โซดา', category: 'soda', icon: '🫐' },
+
+            // หมวดนม & อื่นๆ (Milk & Others)
+            { id: 'm1', name: 'นมสดแคนตาลูป', category: 'milk', icon: '🍈' },
+            { id: 'm2', name: 'นมสดบราวน์ชูก้า', category: 'milk', icon: '🧋' },
+            { id: 'm3', name: 'นมเผือก', category: 'milk', icon: '🍠' },
+            { id: 'm4', name: 'โอวัลติน', category: 'milk', icon: '🍫' },
+            { id: 'm5', name: 'โกโก้', category: 'milk', icon: '🍫' },
+            { id: 'm6', name: 'นมสด', category: 'milk', icon: '🥛' },
+            { id: 'm7', name: 'นมชมพู', category: 'milk', icon: '🌸' },
+            { id: 'm8', name: 'นมกล้วย', category: 'milk', icon: '🍌' },
+            { id: 'm9', name: 'สตอร์เบอร์รี่นมสด', category: 'milk', icon: '🍓' }
+        ];
+
+        // =========================================================================
+        // 2. APPLICATION STATE & FIREBASE SETUP
+        // =========================================================================
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let useMemoryFallback = false;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'ojung-loyalty-default';
+        const memoryMembers = new Map();
+        const memoryOrders = [];
+
+        // Active UI States
+        let activeMode = 'customer'; // 'customer' | 'shop'
+        let isShopAuthenticated = false;
+        let currentCustomerPhone = null;
+        let customerUnsubscribe = null;
+
+        // POS States
+        let selectedPosCustomer = null; // { phone, name, points }
+        let currentMenuCategory = 'all';
+        let orderCart = {}; // { itemId: { item, qty } }
+        let bonusPointOffset = 0;
+        let allMembersCache = [];
+        let allOrdersCache = [];
+        let html5QrScanner = null;
+
+        async function initFirebase() {
+            try {
+                if (typeof __firebase_config === 'undefined') {
+                    throw new Error('Firebase config missing, using fallback');
+                }
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Authenticate BEFORE any Firestore queries (Rule 3)
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+                setupRealtimeShopListeners();
+            } catch (err) {
+                console.warn("Running in standalone memory mode:", err);
+                useMemoryFallback = true;
+                renderRecentMembers();
+            }
+        }
+
+        // Firestore Collection Helpers (Strict Path Rule 1)
+        function getMembersCollection() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'ojung_members');
+        }
+        function getMemberDocRef(phone) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'ojung_members', phone);
+        }
+        function getOrdersCollection() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'ojung_orders');
+        }
+
+        // Real-time listeners for Shop Dashboard (Rule 2: No complex queries, sort in JS)
+        function setupRealtimeShopListeners() {
+            if (!db || !currentUser) return;
+
+            onSnapshot(getMembersCollection(), (snapshot) => {
+                const list = [];
+                snapshot.forEach(docSnap => {
+                    list.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+                allMembersCache = list;
+                renderRecentMembers();
+
+                // Update selected POS customer live if active
+                if (selectedPosCustomer) {
+                    const updated = allMembersCache.find(m => m.phone === selectedPosCustomer.phone);
+                    if (updated) {
+                        selectedPosCustomer = updated;
+                        updateSelectedCustomerBanner();
+                    }
+                }
+            }, (err) => console.error("Members snapshot error:", err));
+
+            onSnapshot(getOrdersCollection(), (snapshot) => {
+                const orders = [];
+                snapshot.forEach(docSnap => {
+                    orders.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                orders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                allOrdersCache = orders;
+                renderAllOrdersModal();
+                if (currentCustomerPhone) {
+                    renderCustomerHistory(currentCustomerPhone);
+                }
+            }, (err) => console.error("Orders snapshot error:", err));
+        }
+
+        // =========================================================================
+        // 3. TOAST & MODAL UTILITIES
+        // =========================================================================
+        window.showToast = function(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-red-600' : (type === 'info' ? 'bg-amber-800' : 'bg-emerald-600');
+            const icon = type === 'error' ? 'fa-circle-exclamation' : (type === 'info' ? 'fa-circle-info' : 'fa-circle-check');
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-medium pointer-events-auto transform transition-all duration-300 translate-y-0 opacity-100`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-lg"></i><span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        };
+
+        window.closeModal = function(id) {
+            document.getElementById(id).classList.add('hidden');
+        };
+
+        window.openShopJoinQrModal = function() {
+            const modal = document.getElementById('shop-join-qr-modal');
+            modal.classList.remove('hidden');
+            const qrContainer = document.getElementById('shop-join-qrcode');
+            qrContainer.innerHTML = '';
+            const joinUrl = window.location.href.split('#')[0] + '#register';
+            new QRCode(qrContainer, {
+                text: joinUrl,
+                width: 200,
+                height: 200,
+                colorDark: "#4A2C2A",
+                colorLight: "#FFFFFF",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        };
+
+        window.openSalesLogModal = function() {
+            document.getElementById('sales-log-modal').classList.remove('hidden');
+            renderAllOrdersModal();
+        };
+
+        window.toggleThemeModal = function() {
+            document.getElementById('theme-modal').classList.remove('hidden');
+        };
+
+        window.applyTheme = function(dark, main, accent, bg) {
+            document.documentElement.style.setProperty('--primary-dark', dark);
+            document.documentElement.style.setProperty('--primary-main', main);
+            document.documentElement.style.setProperty('--primary-accent', accent);
+            document.documentElement.style.setProperty('--bg-cream', bg);
+            closeModal('theme-modal');
+            showToast('เปลี่ยนโทนสีร้านเรียบร้อยแล้ว', 'info');
+        };
+
+        // =========================================================================
+        // 4. NAVIGATION SWITCHER (CUSTOMER VS SHOP)
+        // =========================================================================
+        window.switchAppMode = function(mode) {
+            activeMode = mode;
+            const custSection = document.getElementById('customer-section');
+            const shopSection = document.getElementById('shop-section');
+            const navCustBtn = document.getElementById('nav-customer-btn');
+            const navShopBtn = document.getElementById('nav-shop-btn');
+
+            if (mode === 'customer') {
+                custSection.classList.remove('hidden');
+                shopSection.classList.add('hidden');
+                navCustBtn.className = 'px-3 py-1.5 rounded-lg bg-white text-amber-950 font-semibold shadow transition flex items-center gap-1.5';
+                navShopBtn.className = 'px-3 py-1.5 rounded-lg text-amber-100 hover:text-white transition flex items-center gap-1.5';
+                stopQrScanner();
+            } else {
+                custSection.classList.add('hidden');
+                shopSection.classList.remove('hidden');
+                navShopBtn.className = 'px-3 py-1.5 rounded-lg bg-white text-amber-950 font-semibold shadow transition flex items-center gap-1.5';
+                navCustBtn.className = 'px-3 py-1.5 rounded-lg text-amber-100 hover:text-white transition flex items-center gap-1.5';
+            }
+        };
+
+        // =========================================================================
+        // 5. CUSTOMER LOGIC (REGISTER / LOGIN / LIVE POINTS / QR CODE)
+        // =========================================================================
+        document.getElementById('customer-login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rawPhone = document.getElementById('customer-phone-input').value.trim().replace(/\D/g, '');
+            const nameInput = document.getElementById('customer-name-input').value.trim();
+
+            if (rawPhone.length < 9) {
+                showToast('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (9-10 หลัก)', 'error');
+                return;
+            }
+
+            await loadOrRegisterCustomer(rawPhone, nameInput);
+        });
+
+        async function loadOrRegisterCustomer(phone, optionalName = '') {
+            currentCustomerPhone = phone;
+
+            if (!useMemoryFallback && db && currentUser) {
+                try {
+                    const memberRef = getMemberDocRef(phone);
+                    const snap = await getDoc(memberRef);
+
+                    if (!snap.exists()) {
+                        const newMember = {
+                            phone: phone,
+                            name: optionalName || `สมาชิก ${phone.slice(-4)}`,
+                            points: 0,
+                            totalEarned: 0,
+                            createdAt: Date.now(),
+                            updatedAt: Date.now()
+                        };
+                        await setDoc(memberRef, newMember);
+                        showToast('สมัครสมาชิกใหม่สำเร็จ! ยินดีต้อนรับสู่ โอจัง');
+                    } else {
+                        showToast('เข้าสู่ระบบสมาชิกสำเร็จ!');
+                    }
+
+                    // Listen to real-time point updates on customer's own card
+                    if (customerUnsubscribe) customerUnsubscribe();
+                    customerUnsubscribe = onSnapshot(memberRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            updateCustomerCardUI(docSnap.data());
+                        }
+                    }, (err) => console.error(err));
+
+                } catch (err) {
+                    console.error(err);
+                    showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่', 'error');
+                    return;
+                }
+            } else {
+                // Memory fallback
+                if (!memoryMembers.has(phone)) {
+                    memoryMembers.set(phone, {
+                        phone,
+                        name: optionalName || `สมาชิก ${phone.slice(-4)}`,
+                        points: 0,
+                        totalEarned: 0,
+                        updatedAt: Date.now()
+                    });
+                }
+                updateCustomerCardUI(memoryMembers.get(phone));
+            }
+
+            // Switch from login form to Customer Card Dashboard
+            document.getElementById('customer-auth-card').classList.add('hidden');
+            document.getElementById('customer-dashboard').classList.remove('hidden');
+
+            // Generate Customer QR Code (Bottom Section)
+            generateCustomerQrCode(phone);
+            renderCustomerHistory(phone);
+        }
+
+        function updateCustomerCardUI(member) {
+            document.getElementById('display-cust-name').textContent = member.name || 'คุณลูกค้า';
+            document.getElementById('display-cust-phone').textContent = formatPhone(member.phone);
+            document.getElementById('display-cust-points').textContent = member.points || 0;
+            document.getElementById('qr-phone-label').textContent = formatPhone(member.phone);
+
+            const pts = member.points || 0;
+            const modPts = pts >= 10 ? 10 : pts;
+            document.getElementById('progress-text').textContent = `${pts} / 10 แต้ม`;
+
+            const badge = document.getElementById('reward-badge');
+            if (pts >= 10) {
+                badge.textContent = '🎉 พร้อมแลกฟรี 1 แก้ว!';
+                badge.className = 'inline-block px-3 py-1 rounded-xl bg-emerald-500 text-white text-xs font-bold animate-bounce';
+            } else {
+                badge.textContent = `อีก ${10 - pts} แต้ม ฟรี 1 แก้ว!`;
+                badge.className = 'inline-block px-3 py-1 rounded-xl bg-amber-500/30 text-amber-100 text-xs font-medium';
+            }
+
+            // Render 10 stamp cups
+            const grid = document.getElementById('stamp-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= 10; i++) {
+                const filled = i <= modPts;
+                const cup = document.createElement('div');
+                cup.className = filled
+                    ? 'h-7 rounded-lg bg-amber-300 text-amber-950 flex items-center justify-center text-xs font-bold shadow-sm'
+                    : 'h-7 rounded-lg bg-white/10 border border-white/20 text-white/40 flex items-center justify-center text-[10px]';
+                cup.innerHTML = filled ? '<i class="fa-solid fa-mug-hot"></i>' : i;
+                grid.appendChild(cup);
+            }
+        }
+
+        function generateCustomerQrCode(phone) {
+            const qrDiv = document.getElementById('customer-qrcode');
+            qrDiv.innerHTML = '';
+            // Encode clear prefix so shop scanner recognizes OJUNG member instantly
+            new QRCode(qrDiv, {
+                text: `OJUNG:${phone}`,
+                width: 190,
+                height: 190,
+                colorDark: "#3D2321",
+                colorLight: "#FFFFFF",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function renderCustomerHistory(phone) {
+            const listEl = document.getElementById('customer-history-list');
+            const orders = useMemoryFallback
+                ? memoryOrders.filter(o => o.phone === phone)
+                : allOrdersCache.filter(o => o.phone === phone);
+
+            if (orders.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-sm text-gray-400 py-6">ยังไม่มีประวัติการสะสมแต้ม</p>';
+                return;
+            }
+
+            listEl.innerHTML = orders.map(ord => {
+                const dateStr = new Date(ord.timestamp).toLocaleString('th-TH', {
+                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                });
+                const isRedeem = ord.type === 'redeem';
+                return `
+                    <div class="p-3 rounded-2xl bg-amber-50/70 border border-amber-100 flex items-center justify-between gap-2">
+                        <div>
+                            <p class="text-xs font-bold text-amber-950">${ord.itemsSummary || 'รายการหน้าร้าน'}</p>
+                            <p class="text-[11px] text-gray-500 mt-0.5">${dateStr}</p>
+                        </div>
+                        <span class="px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 ${isRedeem ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-200 text-amber-900'}">
+                            ${isRedeem ? '-10 แต้ม (แลกฟรี)' : `+${ord.pointsAwarded} แต้ม`}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.logoutCustomer = function() {
+            if (customerUnsubscribe) customerUnsubscribe();
+            currentCustomerPhone = null;
+            document.getElementById('customer-dashboard').classList.add('hidden');
+            document.getElementById('customer-auth-card').classList.remove('hidden');
+            document.getElementById('customer-phone-input').value = '';
+        };
+
+        // =========================================================================
+        // 6. SHOP AUTHENTICATION (user: OJung, password: 123456)
+        // =========================================================================
+        document.getElementById('shop-login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const user = document.getElementById('shop-username').value.trim();
+            const pass = document.getElementById('shop-password').value.trim();
+            const errEl = document.getElementById('shop-login-error');
+
+            if (user === 'OJung' && pass === '123456') {
+                isShopAuthenticated = true;
+                errEl.classList.add('hidden');
+                document.getElementById('shop-login-card').classList.add('hidden');
+                document.getElementById('shop-dashboard').classList.remove('hidden');
+                renderMenuGrid();
+                renderRecentMembers();
+                showToast('เข้าสู่ระบบร้านค้า โอจัง สำเร็จ!');
+            } else {
+                errEl.classList.remove('hidden');
+                showToast('รหัสผ่านร้านค้าไม่ถูกต้อง', 'error');
+            }
+        });
+
+        window.logoutShop = function() {
+            isShopAuthenticated = false;
+            stopQrScanner();
+            document.getElementById('shop-dashboard').classList.add('hidden');
+            document.getElementById('shop-login-card').classList.remove('hidden');
+            document.getElementById('shop-username').value = '';
+            document.getElementById('shop-password').value = '';
+            showToast('ออกจากระบบร้านค้าแล้ว', 'info');
+        };
+
+        // =========================================================================
+        // 7. SHOP POS: QR SCANNER & CUSTOMER SELECTION
+        // =========================================================================
+        window.toggleQrScanner = function() {
+            const wrapper = document.getElementById('qr-reader-wrapper');
+            if (wrapper.classList.contains('hidden')) {
+                startQrScanner();
+            } else {
+                stopQrScanner();
+            }
+        };
+
+        function startQrScanner() {
+            const wrapper = document.getElementById('qr-reader-wrapper');
+            wrapper.classList.remove('hidden');
+
+            try {
+                html5QrScanner = new Html5Qrcode("qr-reader");
+                html5QrScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    async (decodedText) => {
+                        // Extract phone number from "OJUNG:08XXXXXXXX" or plain phone
+                        const phone = decodedText.replace('OJUNG:', '').replace(/\D/g, '');
+                        if (phone.length >= 9) {
+                            stopQrScanner();
+                            await selectCustomerForPos(phone);
+                        }
+                    },
+                    () => {} // ignore frame scan misses
+                ).catch(err => {
+                    console.warn("Camera error:", err);
+                    showToast('ไม่สามารถเปิดกล้องได้ กรุณากรอกเบอร์โทรแทน', 'error');
+                    wrapper.classList.add('hidden');
+                });
+            } catch (e) {
+                showToast('อุปกรณ์ไม่รองรับกล้องสแกน', 'error');
+                wrapper.classList.add('hidden');
+            }
+        }
+
+        window.stopQrScanner = function() {
+            const wrapper = document.getElementById('qr-reader-wrapper');
+            wrapper.classList.add('hidden');
+            if (html5QrScanner) {
+                html5QrScanner.stop().then(() => {
+                    html5QrScanner.clear();
+                    html5QrScanner = null;
+                }).catch(() => {});
+            }
+        };
+
+        window.selectCustomerByPhoneInput = async function() {
+            const phone = document.getElementById('shop-search-phone').value.trim().replace(/\D/g, '');
+            if (phone.length < 9) {
+                showToast('กรุณากรอกเบอร์โทรศัพท์ลูกค้า 9-10 หลัก', 'error');
+                return;
+            }
+            await selectCustomerForPos(phone);
+            document.getElementById('shop-search-phone').value = '';
+        };
+
+        window.selectCustomerForPos = async function(phone) {
+            if (!useMemoryFallback && db && currentUser) {
+                const memberRef = getMemberDocRef(phone);
+                const snap = await getDoc(memberRef);
+                if (snap.exists()) {
+                    selectedPosCustomer = snap.data();
+                } else {
+                    // Auto-register member at counter if not found
+                    const newMember = {
+                        phone: phone,
+                        name: `สมาชิก ${phone.slice(-4)}`,
+                        points: 0,
+                        totalEarned: 0,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    };
+                    await setDoc(memberRef, newMember);
+                    selectedPosCustomer = newMember;
+                    showToast(`สมัครสมาชิกใหม่ให้เบอร์ ${formatPhone(phone)} อัตโนมัติ`, 'info');
+                }
+            } else {
+                if (!memoryMembers.has(phone)) {
+                    memoryMembers.set(phone, {
+                        phone,
+                        name: `สมาชิก ${phone.slice(-4)}`,
+                        points: 0,
+                        totalEarned: 0,
+                        updatedAt: Date.now()
+                    });
+                }
+                selectedPosCustomer = memoryMembers.get(phone);
+            }
+
+            updateSelectedCustomerBanner();
+            showToast(`เลือกลูกค้า ${formatPhone(phone)} แล้ว`);
+        };
+
+        function updateSelectedCustomerBanner() {
+            const banner = document.getElementById('selected-customer-banner');
+            const redeemBtn = document.getElementById('redeem-free-drink-btn');
+
+            if (!selectedPosCustomer) {
+                banner.classList.add('hidden');
+                redeemBtn.disabled = true;
+                return;
+            }
+
+            banner.classList.remove('hidden');
+            document.getElementById('pos-cust-name').textContent = selectedPosCustomer.name || 'คุณลูกค้า';
+            document.getElementById('pos-cust-phone').textContent = formatPhone(selectedPosCustomer.phone);
+            document.getElementById('pos-cust-points').textContent = selectedPosCustomer.points || 0;
+
+            redeemBtn.disabled = (selectedPosCustomer.points || 0) < 10;
+        }
+
+        window.clearSelectedCustomer = function() {
+            selectedPosCustomer = null;
+            updateSelectedCustomerBanner();
+        };
+
+        function renderRecentMembers() {
+            const container = document.getElementById('recent-members-list');
+            const members = useMemoryFallback ? Array.from(memoryMembers.values()) : allMembersCache;
+
+            if (members.length === 0) {
+                container.innerHTML = '<span class="text-xs text-gray-400">ยังไม่มีสมาชิกในระบบ</span>';
+                return;
+            }
+
+            container.innerHTML = members.slice(0, 6).map(m => `
+                <button onclick="selectCustomerForPos('${m.phone}')"
+                    class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-200 border border-amber-200 text-xs font-medium text-amber-950 transition flex items-center gap-1.5">
+                    <span>${m.phone}</span>
+                    <span class="px-1.5 py-0.2 rounded bg-amber-600 text-white text-[10px] font-bold">${m.points || 0} แต้ม</span>
+                </button>
+            `).join('');
+        }
+
+        // =========================================================================
+        // 8. SHOP POS: CATEGORIZED MENU & ORDER CART
+        // =========================================================================
+        window.setMenuCategory = function(cat) {
+            currentMenuCategory = cat;
+            document.querySelectorAll('.cat-tab').forEach(btn => {
+                if (btn.dataset.cat === cat) {
+                    btn.className = 'cat-tab active px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-800 text-white shadow-sm transition';
+                } else {
+                    btn.className = 'cat-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap bg-amber-50 text-amber-900 hover:bg-amber-100 transition';
+                }
+            });
+            renderMenuGrid();
+        };
+
+        window.renderMenuGrid = function() {
+            const grid = document.getElementById('pos-menu-grid');
+            const searchTerm = (document.getElementById('menu-search-filter').value || '').trim().toLowerCase();
+
+            const filtered = MENU_ITEMS.filter(item => {
+                const matchCat = currentMenuCategory === 'all' || item.category === currentMenuCategory;
+                const matchSearch = item.name.toLowerCase().includes(searchTerm);
+                return matchCat && matchSearch;
+            });
+
+            const catBadgeColors = {
+                tea: 'bg-amber-100 text-amber-800',
+                coffee: 'bg-stone-200 text-stone-800',
+                soda: 'bg-sky-100 text-sky-800',
+                milk: 'bg-pink-100 text-pink-800'
+            };
+            const catLabels = { tea: 'ชา', coffee: 'กาแฟ', soda: 'โซดา', milk: 'นม/อื่นๆ' };
+
+            grid.innerHTML = filtered.map(item => {
+                const inCartQty = orderCart[item.id]?.qty || 0;
+                return `
+                    <button onclick="addToCart('${item.id}')"
+                        class="p-3 rounded-2xl border ${inCartQty > 0 ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-400/30' : 'border-amber-100 bg-amber-50/30 hover:bg-amber-50'} text-left transition flex flex-col justify-between relative group active:scale-95">
+                        <div class="flex items-start justify-between w-full mb-1.5">
+                            <span class="text-xl">${item.icon}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${catBadgeColors[item.category]}">${catLabels[item.category]}</span>
+                        </div>
+                        <p class="font-semibold text-xs sm:text-sm text-amber-950 leading-snug">${item.name}</p>
+                        ${inCartQty > 0 ? `<span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center shadow">${inCartQty}</span>` : ''}
+                    </button>
+                `;
+            }).join('');
+        };
+
+        window.addToCart = function(itemId) {
+            const item = MENU_ITEMS.find(i => i.id === itemId);
+            if (!item) return;
+            if (!orderCart[itemId]) {
+                orderCart[itemId] = { item, qty: 1 };
+            } else {
+                orderCart[itemId].qty += 1;
+            }
+            renderCart();
+            renderMenuGrid();
+        };
+
+        window.updateCartQty = function(itemId, delta) {
+            if (!orderCart[itemId]) return;
+            orderCart[itemId].qty += delta;
+            if (orderCart[itemId].qty <= 0) {
+                delete orderCart[itemId];
+            }
+            renderCart();
+            renderMenuGrid();
+        };
+
+        window.clearCart = function() {
+            orderCart = {};
+            bonusPointOffset = 0;
+            renderCart();
+            renderMenuGrid();
+        };
+
+        window.adjustBonusPoints = function(delta) {
+            const baseCups = getTotalCartCups();
+            if (baseCups + bonusPointOffset + delta < 0) return;
+            bonusPointOffset += delta;
+            renderCart();
+        };
+
+        function getTotalCartCups() {
+            return Object.values(orderCart).reduce((sum, entry) => sum + entry.qty, 0);
+        }
+
+        function renderCart() {
+            const listEl = document.getElementById('pos-cart-list');
+            const entries = Object.values(orderCart);
+            const totalCups = getTotalCartCups();
+            const totalPoints = Math.max(0, totalCups + bonusPointOffset);
+
+            document.getElementById('cart-total-cups').textContent = `${totalCups} แก้ว`;
+            document.getElementById('cart-total-points').textContent = totalPoints;
+
+            if (entries.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-10 text-gray-400">
+                        <i class="fa-solid fa-mug-saucer text-3xl mb-2 text-amber-200"></i>
+                        <p class="text-sm">ยังไม่ได้เลือกเมนูเครื่องดื่ม</p>
+                        <p class="text-xs">แตะที่เมนูฝั่งซ้ายเพื่อเพิ่มรายการ</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = entries.map(({ item, qty }) => `
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-amber-50/80 border border-amber-100">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-base">${item.icon}</span>
+                        <span class="text-xs sm:text-sm font-semibold text-amber-950 truncate">${item.name}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button onclick="updateCartQty('${item.id}', -1)" class="w-7 h-7 rounded-lg bg-white border border-amber-200 text-amber-900 font-bold hover:bg-amber-100">-</button>
+                        <span class="w-6 text-center text-sm font-bold text-amber-950">${qty}</span>
+                        <button onclick="updateCartQty('${item.id}', 1)" class="w-7 h-7 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700">+</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // =========================================================================
+        // 9. SUBMIT ORDER & AWARD POINTS / REDEEM FREE DRINK
+        // =========================================================================
+        window.submitOrderAndAwardPoints = async function() {
+            if (!selectedPosCustomer) {
+                showToast('กรุณาสแกน QR หรือเลือกเบอร์โทรลูกค้าก่อนให้แต้ม!', 'error');
+                return;
+            }
+
+            const entries = Object.values(orderCart);
+            const totalCups = getTotalCartCups();
+            const pointsToAdd = Math.max(0, totalCups + bonusPointOffset);
+
+            if (entries.length === 0 || pointsToAdd <= 0) {
+                showToast('กรุณาเลือกเมนูเครื่องดื่มที่ลูกค้าสั่งก่อนบันทึก', 'error');
+                return;
+            }
+
+            const itemsSummary = entries.map(e => `${e.item.name} x${e.qty}`).join(', ');
+            const newPoints = (selectedPosCustomer.points || 0) + pointsToAdd;
+
+            if (!useMemoryFallback && db && currentUser) {
+                try {
+                    // 1. Update Member Points
+                    const memberRef = getMemberDocRef(selectedPosCustomer.phone);
+                    await updateDoc(memberRef, {
+                        points: newPoints,
+                        totalEarned: (selectedPosCustomer.totalEarned || 0) + pointsToAdd,
+                        updatedAt: Date.now()
+                    });
+
+                    // 2. Save Order Record
+                    await addDoc(getOrdersCollection(), {
+                        phone: selectedPosCustomer.phone,
+                        customerName: selectedPosCustomer.name || '',
+                        items: entries.map(e => ({ name: e.item.name, category: e.item.category, qty: e.qty })),
+                        itemsSummary: itemsSummary,
+                        cupsCount: totalCups,
+                        pointsAwarded: pointsToAdd,
+                        type: 'earn',
+                        timestamp: Date.now()
+                    });
+                } catch (err) {
+                    console.error(err);
+                    showToast('บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่', 'error');
+                    return;
+                }
+            } else {
+                // Memory fallback
+                selectedPosCustomer.points = newPoints;
+                selectedPosCustomer.updatedAt = Date.now();
+                memoryMembers.set(selectedPosCustomer.phone, selectedPosCustomer);
+                memoryOrders.unshift({
+                    phone: selectedPosCustomer.phone,
+                    customerName: selectedPosCustomer.name,
+                    itemsSummary,
+                    pointsAwarded: pointsToAdd,
+                    type: 'earn',
+                    timestamp: Date.now()
+                });
+                updateSelectedCustomerBanner();
+                renderRecentMembers();
+                if (currentCustomerPhone === selectedPosCustomer.phone) {
+                    updateCustomerCardUI(selectedPosCustomer);
+                    renderCustomerHistory(currentCustomerPhone);
+                }
+            }
+
+            showToast(`บันทึกออเดอร์และเพิ่ม +${pointsToAdd} แต้ม ให้เบอร์ ${formatPhone(selectedPosCustomer.phone)} แล้ว!`);
+            clearCart();
+        };
+
+        window.redeemCustomerReward = async function() {
+            if (!selectedPosCustomer || (selectedPosCustomer.points || 0) < 10) {
+                showToast('แต้มสะสมยังไม่ครบ 10 แต้ม', 'error');
+                return;
+            }
+
+            const entries = Object.values(orderCart);
+            const freeDrinkName = entries.length > 0
+                ? `แลกฟรี: ${entries[0].item.name}`
+                : 'แลกเครื่องดื่มฟรี 1 แก้ว (10 แต้ม)';
+
+            const remainingPoints = selectedPosCustomer.points - 10;
+
+            if (!useMemoryFallback && db && currentUser) {
+                try {
+                    await updateDoc(getMemberDocRef(selectedPosCustomer.phone), {
+                        points: remainingPoints,
+                        updatedAt: Date.now()
+                    });
+
+                    await addDoc(getOrdersCollection(), {
+                        phone: selectedPosCustomer.phone,
+                        customerName: selectedPosCustomer.name || '',
+                        itemsSummary: freeDrinkName,
+                        pointsAwarded: -10,
+                        type: 'redeem',
+                        timestamp: Date.now()
+                    });
+                } catch (err) {
+                    console.error(err);
+                    showToast('เกิดข้อผิดพลาดในการแลกแต้ม', 'error');
+                    return;
+                }
+            } else {
+                selectedPosCustomer.points = remainingPoints;
+                memoryMembers.set(selectedPosCustomer.phone, selectedPosCustomer);
+                memoryOrders.unshift({
+                    phone: selectedPosCustomer.phone,
+                    itemsSummary: freeDrinkName,
+                    pointsAwarded: -10,
+                    type: 'redeem',
+                    timestamp: Date.now()
+                });
+                updateSelectedCustomerBanner();
+                if (currentCustomerPhone === selectedPosCustomer.phone) {
+                    updateCustomerCardUI(selectedPosCustomer);
+                    renderCustomerHistory(currentCustomerPhone);
+                }
+            }
+
+            showToast(`แลกเครื่องดื่มฟรีสำเร็จ! คงเหลือ ${remainingPoints} แต้ม`);
+            clearCart();
+        };
+
+        function renderAllOrdersModal() {
+            const listEl = document.getElementById('all-orders-list');
+            const orders = useMemoryFallback ? memoryOrders : allOrdersCache;
+
+            if (orders.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400 py-8 text-sm">ยังไม่มีประวัติการบันทึกออเดอร์</p>';
+                return;
+            }
+
+            listEl.innerHTML = orders.map(ord => {
+                const timeStr = new Date(ord.timestamp).toLocaleString('th-TH', {
+                    day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
+                });
+                const isRedeem = ord.type === 'redeem';
+                return `
+                    <div class="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex items-center justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-xs font-bold bg-amber-900 text-white px-2 py-0.5 rounded">${formatPhone(ord.phone)}</span>
+                                <span class="text-xs text-gray-500">${timeStr}</span>
+                            </div>
+                            <p class="text-sm font-semibold text-amber-950 mt-1">${ord.itemsSummary}</p>
+                        </div>
+                        <span class="px-3 py-1 rounded-xl text-xs font-bold shrink-0 ${isRedeem ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-200 text-amber-900'}">
+                            ${isRedeem ? '-10 แต้ม' : `+${ord.pointsAwarded} แต้ม`}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatPhone(phone) {
+            if (!phone) return '';
+            const clean = phone.replace(/\D/g, '');
+            if (clean.length === 10) {
+                return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+            }
+            return clean;
+        }
+
+        // Initialize App on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initFirebase();
+            renderMenuGrid();
+        });
+    </script>
+</body>
+</html>
